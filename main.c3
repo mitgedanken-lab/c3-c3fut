@@ -6,24 +6,21 @@ struct Counter(Future) {
     int i, n;
 }
 
-macro Future counter(int i, int n)
-{
-    return mem::@tclone(Counter {i, n});
+macro Future counter(int i, int n) {
+    return @tclone(Counter {i, n});
 }
 
-fn void Counter.reset(&self)
-{
+fn void Counter.reset(&self) {
     self.i = 0;
 }
 
-fn any! Counter.poll(&self, any data) @dynamic
-{
+fn any! Counter.poll(&self, any data) @dynamic {
     if (self.i < self.n) {
         io::printfn("%d", self.i);
         self.i += 1;
         return null;
     } else {
-        return mem::@tclone(self.n);
+        return @tclone(self.n);
     }
 }
 

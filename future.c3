@@ -10,30 +10,26 @@ struct Done(Future) {
     any result;
 }
 
-fn any! Done.poll(&self, any data) @dynamic
-{
+fn any! Done.poll(&self, any data) @dynamic {
     return self.result;
 }
 
-macro Future done(value)
-{
-    return mem::@tclone(Done{mem::@tclone(value)});
+macro Future done(value) {
+    return @tclone(Done{@tclone(value)});
 }
 
 struct Reject(Future) {
     anyfault excuse;
 }
 
-fn any! Reject.poll(&self, any data) @dynamic
-{
+fn any! Reject.poll(&self, any data) @dynamic {
     return self.excuse?;
 }
 
-fn Future reject(anyfault excuse)
-{
+fn Future reject(anyfault excuse) {
     Reject r = {};
     r.excuse = excuse;
-    return mem::@tclone(r);
+    return @tclone(r);
 }
 
 struct Then(Future) {
@@ -42,8 +38,7 @@ struct Then(Future) {
     ThenFunction f;
 }
 
-fn any! Then.poll(&self, any data) @dynamic
-{
+fn any! Then.poll(&self, any data) @dynamic {
     if (self.left != null) {
         any result = self.left.poll(data)!;
         if (result) {
@@ -58,7 +53,7 @@ fn any! Then.poll(&self, any data) @dynamic
 }
 
 macro Future Future.then(Future left, ThenFunction f) {
-    return mem::@tclone(Then {
+    return @tclone(Then {
         .left = left,
         .f = f
     });

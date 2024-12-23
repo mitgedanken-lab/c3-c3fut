@@ -1,46 +1,44 @@
 module future;
 
-// TODO: prefix all the Future structs with "Future", since the types are not namespaces.
-
 interface Future {
     fn any! poll(any data);
 }
 
-struct Done(Future) {
+struct FutureDone(Future) {
     any result;
 }
 
-fn any! Done.poll(&self, any data) @dynamic {
+fn any! FutureDone.poll(&self, any data) @dynamic {
     return self.result;
 }
 
 macro Future done(value) {
-    return @tclone(Done{@tclone(value)});
+    return @tclone(FutureDone{@tclone(value)});
 }
 
-struct Reject(Future) {
+struct FutureReject(Future) {
     anyfault excuse;
 }
 
-fn any! Reject.poll(&self, any data) @dynamic {
+fn any! FutureReject.poll(&self, any data) @dynamic {
     return self.excuse?;
 }
 
 fn Future reject(anyfault excuse) {
-    Reject r = {};
+    FutureReject r = {};
     r.excuse = excuse;
     return @tclone(r);
 }
 
-def ThenFunction = fn Future(any result);
+def FutureThenFunction = fn Future(any result);
 
-struct Then(Future) {
+struct FutureThen(Future) {
     Future left;
     Future right;
-    ThenFunction f;
+    FutureThenFunction f;
 }
 
-fn any! Then.poll(&self, any data) @dynamic {
+fn any! FutureThen.poll(&self, any data) @dynamic {
     if (self.left != null) {
         any result = self.left.poll(data)!;
         if (result) {
@@ -54,22 +52,22 @@ fn any! Then.poll(&self, any data) @dynamic {
     }
 }
 
-macro Future Future.then(Future left, ThenFunction f) {
-    return @tclone(Then {
+macro Future Future.then(Future left, FutureThenFunction f) {
+    return @tclone(FutureThen {
         .left = left,
         .f = f
     });
 }
 
-def CatchFunction = fn Future(anyfault excuse);
+def FutureCatchFunction = fn Future(anyfault excuse);
 
-struct Catch(Future) {
+struct FutureCatch(Future) {
     Future left;
     Future right;
-    CatchFunction f;
+    FutureCatchFunction f;
 }
 
-fn any! Catch.poll(&self, any data) @dynamic {
+fn any! FutureCatch.poll(&self, any data) @dynamic {
     if (self.left != null) {
         any! result = self.left.poll(data);
         if (catch excuse = result) {
@@ -87,8 +85,8 @@ fn any! Catch.poll(&self, any data) @dynamic {
 // NOTE: We don't really need to call it @catch (I don't remember what @ does, I think it's an
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
-macro Future Future.@catch(Future left, CatchFunction f) {
-    return @tclone(Catch {
+macro Future Future.@catch(Future left, FutureCatchFunction f) {
+    return @tclone(FutureCatch {
         .left = left,
         .f = f
     });

@@ -92,6 +92,10 @@ macro Future Future.@catch(Future left, FutureCatchFunction f) {
     });
 }
 
+// TODO: future::start() should be a method of a single future and we should have a
+// future combinator that accepts slice of futures. We should call it something
+// like future::parallel(). Or maybe even future::collect() which returns you the
+// list of future results.
 fn void! start(Future[] futures) {
     bool quit = false;
     while (!quit) {

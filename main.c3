@@ -27,19 +27,24 @@ fn any! Counter.poll(&self, any data) @dynamic {
 fn int main() {
     List(<Future>) futures;
     futures.push(counter(1, 10));
-    futures.push(future::done(69).then(fn Future(any result) {
-        io::printfn("%s", result);
-        return future::done(420);
-    }).then(fn Future(any result) {
-        io::printfn("%s", result);
-        return future::done(1337);
-    }).then(fn Future(any result) {
-        io::printfn("%s", result);
-        return future::reject(IoError.WOULD_BLOCK);
-    }));
-    if (catch err = future::start(futures.array_view())) {
-        io::printfn("One of the futures failed with %s", err);
-        return 1;
-    }
+    futures.push(
+        future::done(69)
+            .then(fn Future(any result) {
+                io::printfn("%s", result);
+                return future::done(420);
+            })
+            .then(fn Future(any result) {
+                io::printfn("%s", result);
+                return future::done(1337);
+            })
+            .then(fn Future(any result) {
+                io::printfn("%s", result);
+                return future::reject(IoError.WOULD_BLOCK);
+            })
+            .@catch(fn Future(anyfault excuse) {
+                io::printfn("One of the futures failed with %s. Recovering...", excuse);
+                return future::done(null);
+            }));
+    future::start(futures.array_view())!!;
     return 0;
 }

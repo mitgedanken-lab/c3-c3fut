@@ -1,6 +1,6 @@
 import std::io;
 import std::collections::list;
-import future;
+import c3fut::fut;
 
 struct Counter(Future) {
     int i, n;
@@ -28,23 +28,23 @@ fn int main() {
     List(<Future>) futures;
     futures.push(counter(1, 10));
     futures.push(
-        future::done(69)
+        fut::done(69)
             .then(fn Future(any result) {
                 io::printfn("%s", result);
-                return future::done(420);
+                return fut::done(420);
             })
             .then(fn Future(any result) {
                 io::printfn("%s", result);
-                return future::done(1337);
+                return fut::done(1337);
             })
             .then(fn Future(any result) {
                 io::printfn("%s", result);
-                return future::reject(IoError.WOULD_BLOCK);
+                return fut::reject(IoError.WOULD_BLOCK);
             })
             .@catch(fn Future(anyfault excuse) {
                 io::printfn("One of the futures failed with %s. Recovering...", excuse);
-                return future::done(null);
+                return fut::done(null);
             }));
-    future::start(futures.array_view())!!;
+    fut::start(futures.array_view())!!;
     return 0;
 }

@@ -1,4 +1,4 @@
-module future;
+module c3fut::fut;
 
 interface Future {
     fn any! poll(any data);

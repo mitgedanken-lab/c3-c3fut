@@ -6,5 +6,5 @@
 ## Quick Start
 
 ```console
-$ c3c compile-run ./example.c3 ./c3fut.c3
+$ c3c run example
 ```

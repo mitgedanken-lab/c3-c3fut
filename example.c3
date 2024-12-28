@@ -2,31 +2,22 @@ import std::io;
 import std::collections::list;
 import c3fut::fut;
 
-struct Counter(Future) {
-    int i, n;
-}
-
-macro Future counter(int i, int n) {
-    return @tclone(Counter {i, n});
-}
-
-fn void Counter.reset(&self) {
-    self.i = 0;
-}
-
-fn any! Counter.poll(&self, any data) @dynamic {
-    if (self.i < self.n) {
-        io::printfn("%d", self.i);
-        self.i += 1;
-        return null;
-    } else {
-        return @tclone(self.n);
-    }
-}
-
 fn int main() {
     List(<Future>) futures;
-    futures.push(counter(1, 10));
+    usz i = 0;
+    futures.push(fut::poll(fn any!(any state, any data) {
+        usz *i = anycast(state, usz)!!;
+        if (*i < 10) {
+            io::printfn("%d", *i);
+            *i += 1;
+            return null;
+        } else {
+            return state;
+        }
+    }, &i).then(fn Future(any result) {
+        io::printfn("DONE!");
+        return fut::done(null);
+    }));
     futures.push(
         fut::done(69)
             .then(fn Future(any result) {

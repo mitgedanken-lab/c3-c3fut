@@ -92,6 +92,24 @@ macro Future Future.@catch(Future left, FutureCatchFunction f) {
     });
 }
 
+def FuturePollFn = fn any!(any state, any data);
+
+struct FuturePoll(Future) {
+    any state;
+    FuturePollFn poll_fn;
+}
+
+fn any! FuturePoll.poll(&self, any data) @dynamic {
+    return self.poll_fn(self.state, data);
+}
+
+macro Future poll(FuturePollFn poll_fn, any state) {
+    return @tclone(FuturePoll {
+        .state = state,
+        .poll_fn = poll_fn,
+    });
+}
+
 // TODO: future::start() should be a method of a single future and we should have a
 // future combinator that accepts slice of futures. We should call it something
 // like future::parallel(). Or maybe even future::collect() which returns you the

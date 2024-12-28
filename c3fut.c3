@@ -92,28 +92,6 @@ macro Future Future.@catch(Future left, FutureCatchFunction f) {
     });
 }
 
-def FutureForeverFunction = fn Future(any arg);
-struct FutureForever(Future) {
-    any arg;
-    FutureForeverFunction make;
-    Future fut;
-}
-
-fn any! FutureForever.poll(&self, any data) @dynamic {
-    if (self.fut == null) self.fut = self.make(self.arg);
-    any result = self.fut.poll(data)!;
-    if (result != null) self.fut = null; // TODO: This leaks a bit of memory every time, because we can't customize allocators
-    return null;
-}
-
-fn Future forever(FutureForeverFunction make, any arg = null)
-{
-    return @tclone(FutureForever {
-        .arg = arg,
-        .make = make,
-    });
-}
-
 // TODO: future::start() should be a method of a single future and we should have a
 // future combinator that accepts slice of futures. We should call it something
 // like future::parallel(). Or maybe even future::collect() which returns you the

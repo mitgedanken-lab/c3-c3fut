@@ -6,5 +6,5 @@
 ## Quick Start
 
 ```console
-$ c3c run example
+$ c3c run
 ```

@@ -1,11 +1,13 @@
 {
-    "targets": {
-        "example": {
-            "type": "executable",
-            "sources": [
-                "example.c3",
-                "c3fut.c3"
-            ]
-        }
+  "sources": [ "c3fut.c3" ],
+  "targets": {
+    "example": {
+      "type": "executable",
+      "sources":  [ "example.c3" ]
+    },
+    "echo": {
+      "type": "executable",
+      "sources":  [ "echo.c3" ]
     }
+  }
 }

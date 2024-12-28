@@ -5,7 +5,7 @@ import c3fut::fut;
 fn int main() {
     List(<Future>) futures;
     usz i = 0;
-    futures.push(fut::poll(fn any!(any state, any data) {
+    futures.push(fut::poll(fn any!(any state, any env) {
         usz *i = anycast(state, usz)!!;
         if (*i < 10) {
             io::printfn("%d", *i);

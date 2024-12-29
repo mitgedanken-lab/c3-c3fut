@@ -5,31 +5,34 @@ import c3fut::fut;
 fn int main() {
     List(<Future>) futures;
     usz i = 0;
-    futures.push(fut::poll(fn any!(any state, any env) {
+    futures.push(fut::poll(fn Result!(any state, any env) {
         usz *i = anycast(state, usz)!!;
         if (*i < 10) {
             io::printfn("%d", *i);
             *i += 1;
-            return null;
+            return fut::pending();
         } else {
-            return state;
+            return fut::finished();
         }
     }, &i).then(fn Future(any result) {
         io::printfn("DONE!");
-        return fut::done(null);
+        return fut::done();
     }));
     futures.push(
-        fut::done(69)
+        fut::done((int*)69) // NOTE: Lernö does not allow you to store
+                            // primitive values in `any` because he is
+                            // authoritarian like that. But creative
+                            // freedom always finds its way!
             .then(fn Future(any result) {
-                io::printfn("%s", result);
-                return fut::done(420);
+                io::printfn("%d", result.ptr);
+                return fut::done((int*)420);
             })
             .then(fn Future(any result) {
-                io::printfn("%s", result);
-                return fut::done(1337);
+                io::printfn("%d", result.ptr);
+                return fut::done((int*)1337);
             })
             .then(fn Future(any result) {
-                io::printfn("%s", result);
+                io::printfn("%d", result.ptr);
                 return fut::reject(IoError.WOULD_BLOCK);
             })
             .@catch(fn Future(anyfault excuse) {
@@ -40,7 +43,7 @@ fn int main() {
     while (!quit) {
         quit = true;
         foreach (&future: futures) {
-            if (future.poll(null)!! == null) {
+            if (!future.poll(null)!!.finished) {
                 quit = false;
             }
         }

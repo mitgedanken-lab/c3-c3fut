@@ -137,19 +137,3 @@ macro Future forever(FutureForeverFn forever_fn, any arg = null, Allocator backi
     future.arena.init(20*1024, backing_allocator);
     return @clone(future);
 }
-
-// TODO: future::start() should be a method of a single future and we should have a
-// future combinator that accepts slice of futures. We should call it something
-// like future::parallel(). Or maybe even future::collect() which returns you the
-// list of future results.
-fn void! start(Future[] futures) {
-    bool quit = false;
-    while (!quit) {
-        quit = true;
-        foreach (future: &futures) {
-            if (future.poll(null)! == null) {
-                quit = false;
-            }
-        }
-    }
-}

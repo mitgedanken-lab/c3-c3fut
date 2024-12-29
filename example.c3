@@ -36,6 +36,14 @@ fn int main() {
                 io::printfn("One of the futures failed with %s. Recovering...", excuse);
                 return fut::done(null);
             }));
-    fut::start(futures.array_view())!!;
+    bool quit = false;
+    while (!quit) {
+        quit = true;
+        foreach (&future: futures) {
+            if (future.poll(null)!! == null) {
+                quit = false;
+            }
+        }
+    }
     return 0;
 }

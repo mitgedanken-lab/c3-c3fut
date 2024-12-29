@@ -46,7 +46,7 @@ fn Future reject(anyfault excuse) {
     return @clone(r);
 }
 
-def FutureThenFn = fn Future(any result);
+def FutureThenFn = fn Future(any result); // TODO: maybe we should allow FutureThenFn fail?
 
 struct FutureThen(Future) {
     Future left;

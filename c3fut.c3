@@ -124,7 +124,14 @@ fn any! FutureForever.poll(&self, any env) @dynamic {
             self.arena.reset();
             self.future = self.forever_fn(self.arg);
         }
-        if (self.future.poll(env)!) self.future = null;
+        any! result = self.future.poll(env);
+        if (catch error = result) {
+            self.arena.free();
+            self.future = null;
+            return error?;
+        } else if (result) {
+            self.future = null;
+        }
         return null;
     };
 }

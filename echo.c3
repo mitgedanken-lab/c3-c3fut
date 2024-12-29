@@ -94,9 +94,8 @@ $if ASYNC:
                     client.i = 0;
                     client.n = 0;
                     return client_async_read_once()
-                        .then(&client_async_write_everything)
-                        .@catch(&client_async_catch_error);
-                }, client);
+                        .then(&client_async_write_everything);
+                }, client).@catch(&client_async_catch_error);
                 server.clients.push(client);
                 io::printfn("Client connected");
             }
@@ -112,7 +111,6 @@ $if ASYNC:
             if (!client.future.poll(client)!!) {
                 clients_next.push(client);
             } else {
-                io::printfn("Client disconnected");
                 client.client_sock.close()!!;
                 free(client);
             }

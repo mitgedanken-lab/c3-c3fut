@@ -24,9 +24,9 @@ struct Server {
     List(<Client*>) *clients;
 }
 
-fn Future client_async_read_once() {
+fn Future client_async_read_once(Client *client) {
     return fut::poll(fn Result!(any state, any env) {
-        Client *client = anycast(env, Client)!!;
+        Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
         if (catch error = n) {
             case IoError.WOULD_BLOCK: return fut::pending();
@@ -34,14 +34,14 @@ fn Future client_async_read_once() {
         }
         if (n == 0) return ClientError.CLOSED?;
         client.n = n;
-        return fut::finished();
-    });
+        return fut::finished(client);
+    }, client);
 }
 
-fn Future client_async_write_everything(any result) {
+fn Future client_async_write_everything(Client *client) {
     return fut::poll(fn Result!(any state, any env) {
-        Client *client = anycast(env, Client)!!;
-        if (client.n == 0) return fut::finished();
+        Client *client = anycast(state, Client)!!;
+        if (client.n == 0) return fut::finished(client);
         usz! n = client.client_sock.write(client.buffer[client.i:client.n]);
         if (catch error = n) {
             case IoError.WOULD_BLOCK: return fut::pending();
@@ -51,9 +51,9 @@ fn Future client_async_write_everything(any result) {
         client.i += n;
         client.n -= n;
         io::printfn("WRITE: %d %d", n, client.n);
-        if (client.n == 0) return fut::finished();
+        if (client.n == 0) return fut::finished(client);
         return fut::pending();
-    });
+    }, client);
 }
 
 fn Future client_async_catch_error(anyfault error) {
@@ -73,43 +73,45 @@ $if ASYNC:
     Server server = {
         .server_sock = server_sock,
         .clients = &clients,
-        .future = fut::poll(fn Result!(any state, any env) {
-            Server *server = anycast(env, Server)!!;
-            TcpSocket! client_sock = tcp::accept(&server.server_sock);
-            if (catch nani = client_sock) {
-                switch (os::socket_error()) {
-                    case IoError.WOULD_BLOCK: return fut::pending();
-                    default: nani?!!;
-                }
-            } else {
-                client_sock.sock.set_non_blocking(true)!!;
-                Client *client = @clone(Client {
-                    .client_sock = client_sock,
-                });
-                client.future = fut::forever(fn Future(any arg) {
-                    Client *client = anycast(arg, Client)!!;
-                    client.i = 0;
-                    client.n = 0;
-                    return client_async_read_once()
-                        .then(&client_async_write_everything);
-                }, client).@catch(&client_async_catch_error);
-                server.clients.push(client);
-                io::printfn("Client connected");
-            }
-            return fut::pending();
-        }),
     };
+    server.future = fut::poll(fn Result!(any state, any env) {
+        Server *server = anycast(state, Server)!!;
+        TcpSocket! client_sock = tcp::accept(&server.server_sock);
+        if (catch nani = client_sock) {
+            switch (os::socket_error()) {
+                case IoError.WOULD_BLOCK: return fut::pending();
+                default: nani?!!;
+            }
+        } else {
+            client_sock.sock.set_non_blocking(true)!!;
+            Client *client = @clone(Client {
+                .client_sock = client_sock,
+            });
+            client.future = fut::forever(fn Future(any arg) {
+                Client *client = anycast(arg, Client)!!;
+                client.i = 0;
+                client.n = 0;
+                return client_async_read_once(client).then(fn Future(any result) {
+                    return client_async_write_everything(anycast(result, Client)!!);
+                });
+            }, client).@catch(&client_async_catch_error);
+            server.clients.push(client);
+            io::printfn("Client connected");
+        }
+        return fut::pending();
+    }, &server);
 $endif
 
     while (true) {
 $if ASYNC:
-        server.future.poll(&server)!!;
+        server.future.poll()!!;
         foreach (client: clients) {
-            if (!client.future.poll(client)!!.finished) {
+            if (!client.future.poll()!!.finished) {
                 clients_next.push(client);
             } else {
                 io::printfn("Client disconnected");
                 client.client_sock.close()!!;
+                free(client.future);
                 free(client);
             }
         }

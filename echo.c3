@@ -5,8 +5,6 @@ import std::net::os;
 import std::collections::list;
 import c3fut::fut;
 
-const bool ASYNC = true;
-
 fault ClientError {
     CLOSED,
 }
@@ -63,8 +61,6 @@ fn Future client_async_catch_error(anyfault error) {
 
 fn void main() {
     TcpServerSocket server_sock = tcp::listen("localhost", 6969, 69, REUSEADDR)!!;
-
-$if ASYNC:
     server_sock.sock.set_non_blocking(true)!!;
 
     List(<Client*>) clients;
@@ -101,10 +97,8 @@ $if ASYNC:
         }
         return fut::pending();
     }, &server);
-$endif
 
     while (true) {
-$if ASYNC:
         server.future.poll()!!;
         foreach (client: clients) {
             if (!client.future.poll()!!.finished) {
@@ -118,25 +112,5 @@ $if ASYNC:
         }
         clients.clear();
         @swap(clients, clients_next);
-$else
-        TcpSocket! client_sock = tcp::accept(&server_sock);
-        Thread client_thread;
-        client_thread.create(fn int(void* arg) {
-            TcpSocket* client_sock = (TcpSocket*)arg;
-            defer {
-                client_sock.close()!!;
-                free(client_sock);
-                io::printfn("Client disconnected");
-            }
-            char[1024] buffer;
-            while (true) {
-                usz n = client_sock.read(&buffer)!!;
-                if (n == 0) break;
-                client_sock.write(buffer[0:n])!!;
-            }
-            return 0;
-        }, @clone(client_sock))!!;
-        client_thread.detach()!!;
-$endif
     }
 }

@@ -12,10 +12,10 @@ fn int main() {
             *i += 1;
             return fut::pending();
         } else {
-            return fut::finished();
+            return fut::finished(i);
         }
     }, &i).then(fn Future(any result) {
-        io::printfn("DONE!");
+        io::printfn("DONE! %d", *anycast(result, usz)!!);
         return fut::done();
     }));
     futures.push(

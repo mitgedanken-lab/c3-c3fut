@@ -55,7 +55,7 @@ fn Future reject(anyfault excuse) {
     return @clone(r);
 }
 
-def FutureThenFn = fn Future(any result); // TODO: maybe we should allow FutureThenFn fail?
+def FutureThenFn = fn Future(any result);
 
 struct FutureThen(Future) {
     Future left;
@@ -152,6 +152,9 @@ macro Future poll(FuturePollFn poll_fn, any state = null) {
     });
 }
 
+// TODO: Maybe symantically FutureForeverFn should FutureThenFn
+// So you can think of fut::forever as a infinite .then() that
+// constantly feeds into itself
 def FutureForeverFn = fn Future(any state);
 struct FutureForever(Future) {
     any state;

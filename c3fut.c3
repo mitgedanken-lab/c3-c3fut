@@ -17,14 +17,14 @@ macro Result finished(any value = null) {
 }
 
 interface Future {
-    fn Result! poll(any env = null);
+    fn Result! poll();
 }
 
 struct FutureDone(Future) {
     any result;
 }
 
-fn Result! FutureDone.poll(&self, any env) @dynamic {
+fn Result! FutureDone.poll(&self) @dynamic {
     return finished(self.result);
 }
 
@@ -36,7 +36,7 @@ struct FutureReject(Future) {
     anyfault excuse;
 }
 
-fn Result! FutureReject.poll(&self, any env) @dynamic {
+fn Result! FutureReject.poll(&self) @dynamic {
     return self.excuse?;
 }
 
@@ -54,9 +54,9 @@ struct FutureThen(Future) {
     FutureThenFn f;
 }
 
-fn Result! FutureThen.poll(&self, any env) @dynamic {
+fn Result! FutureThen.poll(&self) @dynamic {
     if (self.left != null) {
-        Result result = self.left.poll(env)!;
+        Result result = self.left.poll()!;
         if (result.finished) {
             self.right = self.f(result.value);
             self.left = null;
@@ -64,7 +64,7 @@ fn Result! FutureThen.poll(&self, any env) @dynamic {
         return pending();
     } else {
         assert(self.right != null);
-        return self.right.poll(env);
+        return self.right.poll();
     }
 }
 
@@ -83,9 +83,9 @@ struct FutureCatch(Future) {
     FutureCatchFn f;
 }
 
-fn Result! FutureCatch.poll(&self, any env) @dynamic {
+fn Result! FutureCatch.poll(&self) @dynamic {
     if (self.left != null) {
-        Result! result = self.left.poll(env);
+        Result! result = self.left.poll();
         if (catch excuse = result) {
             self.right = self.f(excuse);
             self.left = null;
@@ -94,7 +94,7 @@ fn Result! FutureCatch.poll(&self, any env) @dynamic {
         return result;
     } else {
         assert(self.right != null);
-        return self.right.poll(env);
+        return self.right.poll();
     }
 }
 
@@ -108,15 +108,15 @@ macro Future Future.@catch(Future left, FutureCatchFn f) {
     });
 }
 
-def FuturePollFn = fn Result!(any state, any env);
+def FuturePollFn = fn Result!(any state);
 
 struct FuturePoll(Future) {
     any state;
     FuturePollFn poll_fn;
 }
 
-fn Result! FuturePoll.poll(&self, any env) @dynamic {
-    return self.poll_fn(self.state, env);
+fn Result! FuturePoll.poll(&self) @dynamic {
+    return self.poll_fn(self.state);
 }
 
 macro Future poll(FuturePollFn poll_fn, any state = null) {
@@ -134,13 +134,13 @@ struct FutureForever(Future) {
     DynamicArenaAllocator arena;
 }
 
-fn Result! FutureForever.poll(&self, any env) @dynamic {
+fn Result! FutureForever.poll(&self) @dynamic {
     mem::@scoped(&self.arena) {
         if (self.future == null) {
             self.arena.reset();
             self.future = self.forever_fn(self.arg);
         }
-        Result! result = self.future.poll(env);
+        Result! result = self.future.poll();
         if (catch error = result) {
             self.arena.free();
             self.future = null;

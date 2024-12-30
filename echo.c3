@@ -25,7 +25,7 @@ struct Server {
 }
 
 fn Future client_async_read_once(Client *client) {
-    return fut::poll(fn Result!(any state, any env) {
+    return fut::poll(fn Result!(any state) {
         Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
         if (catch error = n) {
@@ -39,7 +39,7 @@ fn Future client_async_read_once(Client *client) {
 }
 
 fn Future client_async_write_everything(Client *client) {
-    return fut::poll(fn Result!(any state, any env) {
+    return fut::poll(fn Result!(any state) {
         Client *client = anycast(state, Client)!!;
         if (client.n == 0) return fut::finished(client);
         usz! n = client.client_sock.write(client.buffer[client.i:client.n]);
@@ -75,7 +75,7 @@ $if ASYNC:
         .clients = &clients,
     };
     // TODO: memory allocations in the server accept loop are all over the place and hard to control
-    server.future = fut::poll(fn Result!(any state, any env) {
+    server.future = fut::poll(fn Result!(any state) {
         Server *server = anycast(state, Server)!!;
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
         if (catch nani = client_sock) {

@@ -126,9 +126,9 @@ macro Future poll(FuturePollFn poll_fn, any state = null) {
     });
 }
 
-def FutureForeverFn = fn Future(any arg);
+def FutureForeverFn = fn Future(any state);
 struct FutureForever(Future) {
-    any arg;
+    any state;
     FutureForeverFn forever_fn;
     Future future;
     DynamicArenaAllocator arena;
@@ -138,7 +138,7 @@ fn Result! FutureForever.poll(&self) @dynamic {
     mem::@scoped(&self.arena) {
         if (self.future == null) {
             self.arena.reset();
-            self.future = self.forever_fn(self.arg);
+            self.future = self.forever_fn(self.state);
         }
         Result! result = self.future.poll();
         if (catch error = result) {
@@ -152,9 +152,9 @@ fn Result! FutureForever.poll(&self) @dynamic {
     };
 }
 
-macro Future forever(FutureForeverFn forever_fn, any arg = null, Allocator backing_allocator = allocator::heap()) {
+macro Future forever(FutureForeverFn forever_fn, any state = null, Allocator backing_allocator = allocator::heap()) {
     FutureForever future = {
-        .arg = arg,
+        .state = state,
         .forever_fn = forever_fn,
     };
     future.arena.init(20*1024, backing_allocator);

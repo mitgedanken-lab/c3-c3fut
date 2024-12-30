@@ -48,5 +48,6 @@ fn int main() {
             }
         }
     }
+    foreach (&future: futures) future.destroy();
     return 0;
 }

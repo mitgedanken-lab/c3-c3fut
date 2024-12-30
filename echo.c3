@@ -70,7 +70,6 @@ fn void main() {
         .server_sock = server_sock,
         .clients = &clients,
     };
-    // TODO: memory allocations in the server accept loop are all over the place and hard to control
     server.future = fut::poll(fn Result!(any state) {
         Server *server = anycast(state, Server)!!;
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
@@ -106,7 +105,7 @@ fn void main() {
             } else {
                 io::printfn("Client disconnected");
                 client.client_sock.close()!!;
-                free(client.future);
+                client.future.destroy();
                 free(client);
             }
         }

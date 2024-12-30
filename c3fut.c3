@@ -18,6 +18,7 @@ macro Result finished(any value = null) {
 
 interface Future {
     fn Result! poll();
+    fn void destroy();
 }
 
 struct FutureDone(Future) {
@@ -26,6 +27,10 @@ struct FutureDone(Future) {
 
 fn Result! FutureDone.poll(&self) @dynamic {
     return finished(self.result);
+}
+
+fn void FutureDone.destroy(&self) @dynamic {
+    free(self);
 }
 
 macro Future done(any result = null) {
@@ -38,6 +43,10 @@ struct FutureReject(Future) {
 
 fn Result! FutureReject.poll(&self) @dynamic {
     return self.excuse?;
+}
+
+fn void FutureReject.destroy(&self) @dynamic {
+    free(self);
 }
 
 fn Future reject(anyfault excuse) {
@@ -59,6 +68,7 @@ fn Result! FutureThen.poll(&self) @dynamic {
         Result result = self.left.poll()!;
         if (result.finished) {
             self.right = self.then_fn(result.value);
+            self.left.destroy();
             self.left = null;
         }
         return pending();
@@ -66,6 +76,12 @@ fn Result! FutureThen.poll(&self) @dynamic {
         assert(self.right != null);
         return self.right.poll();
     }
+}
+
+fn void FutureThen.destroy(&self) @dynamic {
+    if (self.left)  self.left.destroy();
+    if (self.right) self.right.destroy();
+    free(self);
 }
 
 macro Future Future.then(Future left, FutureThenFn then_fn) {
@@ -98,6 +114,12 @@ fn Result! FutureCatch.poll(&self) @dynamic {
     }
 }
 
+fn void FutureCatch.destroy(&self) @dynamic {
+    if (self.left) self.left.destroy();
+    if (self.right) self.right.destroy();
+    free(self);
+}
+
 // NOTE: We don't really need to call it @catch (I don't remember what @ does, I think it's an
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
@@ -119,6 +141,10 @@ fn Result! FuturePoll.poll(&self) @dynamic {
     return self.poll_fn(self.state);
 }
 
+fn void FuturePoll.destroy(&self) @dynamic {
+    free(self);
+}
+
 macro Future poll(FuturePollFn poll_fn, any state = null) {
     return @clone(FuturePoll {
         .state = state,
@@ -131,32 +157,31 @@ struct FutureForever(Future) {
     any state;
     FutureForeverFn forever_fn;
     Future future;
-    DynamicArenaAllocator arena;
 }
 
 fn Result! FutureForever.poll(&self) @dynamic {
-    mem::@scoped(&self.arena) {
-        if (self.future == null) {
-            self.arena.reset();
-            self.future = self.forever_fn(self.state);
-        }
-        Result! result = self.future.poll();
-        if (catch error = result) {
-            self.arena.free();
-            self.future = null;
-            return error?;
-        } else if (result.finished) {
-            self.future = null;
-        }
-        return pending();
-    };
+    if (self.future == null) self.future = self.forever_fn(self.state);
+    Result! result = self.future.poll();
+    if (catch error = result) {
+        self.future.destroy();
+        self.future = null;
+        return error?;
+    }
+    if (result.finished) {
+        self.future.destroy();
+        self.future = null;
+    }
+    return pending();
 }
 
-macro Future forever(FutureForeverFn forever_fn, any state = null, Allocator backing_allocator = allocator::heap()) {
-    FutureForever future = {
+fn void FutureForever.destroy(&self) @dynamic {
+    if (self.future) self.future.destroy();
+    free(self);
+}
+
+macro Future forever(FutureForeverFn forever_fn, any state = null) {
+    return @clone(FutureForever {
         .state = state,
         .forever_fn = forever_fn,
-    };
-    future.arena.init(20*1024, backing_allocator);
-    return @clone(future);
+    });
 }

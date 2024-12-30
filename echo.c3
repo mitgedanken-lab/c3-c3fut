@@ -74,6 +74,7 @@ $if ASYNC:
         .server_sock = server_sock,
         .clients = &clients,
     };
+    // TODO: memory allocations in the server accept loop are all over the place and hard to control
     server.future = fut::poll(fn Result!(any state, any env) {
         Server *server = anycast(state, Server)!!;
         TcpSocket! client_sock = tcp::accept(&server.server_sock);

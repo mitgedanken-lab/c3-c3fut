@@ -51,14 +51,14 @@ def FutureThenFn = fn Future(any result); // TODO: maybe we should allow FutureT
 struct FutureThen(Future) {
     Future left;
     Future right;
-    FutureThenFn f;
+    FutureThenFn then_fn;
 }
 
 fn Result! FutureThen.poll(&self) @dynamic {
     if (self.left != null) {
         Result result = self.left.poll()!;
         if (result.finished) {
-            self.right = self.f(result.value);
+            self.right = self.then_fn(result.value);
             self.left = null;
         }
         return pending();
@@ -68,10 +68,10 @@ fn Result! FutureThen.poll(&self) @dynamic {
     }
 }
 
-macro Future Future.then(Future left, FutureThenFn f) {
+macro Future Future.then(Future left, FutureThenFn then_fn) {
     return @clone(FutureThen {
         .left = left,
-        .f = f
+        .then_fn = then_fn,
     });
 }
 
@@ -80,14 +80,14 @@ def FutureCatchFn = fn Future(anyfault excuse);
 struct FutureCatch(Future) {
     Future left;
     Future right;
-    FutureCatchFn f;
+    FutureCatchFn catch_fn;
 }
 
 fn Result! FutureCatch.poll(&self) @dynamic {
     if (self.left != null) {
         Result! result = self.left.poll();
         if (catch excuse = result) {
-            self.right = self.f(excuse);
+            self.right = self.catch_fn(excuse);
             self.left = null;
             return pending();
         }
@@ -101,10 +101,10 @@ fn Result! FutureCatch.poll(&self) @dynamic {
 // NOTE: We don't really need to call it @catch (I don't remember what @ does, I think it's an
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
-macro Future Future.@catch(Future left, FutureCatchFn f) {
+macro Future Future.@catch(Future left, FutureCatchFn catch_fn) {
     return @clone(FutureCatch {
         .left = left,
-        .f = f
+        .catch_fn = catch_fn
     });
 }
 

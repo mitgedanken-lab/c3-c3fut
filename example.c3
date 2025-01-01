@@ -1,11 +1,12 @@
 import std::io;
-import std::collections::list;
 import c3fut::fut;
+import c3fut::simple;
+
+SimpleRunner runner;
 
 fn int main() {
-    List(<Future>) futures;
     usz i = 0;
-    futures.push(fut::poll(fn Result!(any state) {
+    runner.schedule(fut::poll(fn Result!(any state) {
         usz *i = anycast(state, usz)!!;
         if (*i < 10) {
             io::printfn("%d", *i);
@@ -18,7 +19,7 @@ fn int main() {
         io::printfn("DONE! %d", *anycast(result, usz)!!);
         return fut::done();
     }));
-    futures.push(
+    runner.schedule(
         fut::done((int*)69) // NOTE: Lernö does not allow you to store
                             // primitive values in `any` because he is
                             // authoritarian like that. But creative
@@ -39,16 +40,6 @@ fn int main() {
                 io::printfn("One of the futures failed with %s. Recovering...", excuse);
                 return fut::done(null);
             }));
-    // TODO: implement simple runner for this kind of stuff
-    bool quit = false;
-    while (!quit) {
-        quit = true;
-        foreach (&future: futures) {
-            if (future.poll()!!.state != FINISHED) {
-                quit = false;
-            }
-        }
-    }
-    foreach (&future: futures) future.destroy();
+    runner.run()!!;
     return 0;
 }

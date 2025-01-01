@@ -1,5 +1,9 @@
 module c3fut::fut;
 
+fault FutureError {
+    SLEEPING_UNSUPPORTED,
+}
+
 enum State {
     // The future is finished, and Result.value contains the result of its
     // execusion.  Consequent calls of Future.poll() after receiving this
@@ -225,6 +229,38 @@ macro Future forever(FutureForeverFn forever_fn, any state = null) {
     });
 }
 
+module c3fut::simple;
+
+import c3fut::fut;
+import std::collections::list;
+
+struct SimpleRunner {
+    List(<Future>) futures;
+}
+
+fn void SimpleRunner.schedule(&self, Future future) {
+    self.futures.push(future);
+}
+
+fn bool SimpleRunner.done(&self) {
+    return self.futures.len() == 0;
+}
+
+fn void! SimpleRunner.run(&self) {
+    while (!self.done()) {
+        for (usz i = 0; i < self.futures.len();) {
+            Result result = self.futures[i].poll()!;
+            switch (result.state) {
+                case PENDING: ++i;
+                case SLEEPING: return FutureError.SLEEPING_UNSUPPORTED?;
+                case FINISHED:
+                    self.futures.swap(i, self.futures.len()-1);
+                    self.futures.pop()!!;
+            }
+        }
+    }
+}
+
 module c3fut::poll;
 
 import c3fut::fut;
@@ -238,9 +274,9 @@ struct NativeSocketPoll {
 }
 
 struct PollRunner {
-    List(<Future>) kitchen;
+    List(<Future>) kitchen; // cooking futures
     List(<Future>) dirty_kitchen;
-    HashMap(<NativeSocket, Future>) bed;
+    HashMap(<NativeSocket, Future>) bed; // sleeping future ( -.-).zZ
     List(<Poll>) polls;
 }
 

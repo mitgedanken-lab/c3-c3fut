@@ -20,17 +20,12 @@ struct Server {
     TcpServerSocket server_sock;
 }
 
-struct SocketWait {
-    NativeSocket socket;
-    PollSubscribes events;
-}
-
 fn Future client_async_read_once(Client *client) {
     return fut::poll(fn Result!(any state) {
         Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
+            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(NativeSocketPoll {
                 .socket = client.client_sock.sock,
                 .events = net::SUBSCRIBE_READ,
             }));
@@ -48,7 +43,7 @@ fn Future client_async_write_everything(Client *client) {
         if (client.n == 0) return fut::finished(client);
         usz! n = client.client_sock.write(client.buffer[client.i:client.n]);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
+            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(NativeSocketPoll {
                 .socket = client.client_sock.sock,
                 .events = net::SUBSCRIBE_WRITE,
             }));
@@ -63,27 +58,27 @@ fn Future client_async_write_everything(Client *client) {
     }, client);
 }
 
-fn Future client_async_catch_error(anyfault error) {
-    if (error == ClientError.CLOSED) return fut::done();
-    return fut::reject(error);
+struct NativeSocketPoll {
+    NativeSocket socket;
+    PollSubscribes events;
 }
 
-struct Runner {
+struct PollRunner {
     List(<Future>) kitchen;
     List(<Future>) dirty_kitchen;
     HashMap(<NativeSocket, Future>) bed;
     List(<Poll>) polls;
 }
 
-fn void Runner.schedule(&self, Future future) {
+fn void PollRunner.schedule(&self, Future future) {
     self.dirty_kitchen.push(future);
 }
 
-fn bool Runner.done(&self) {
+fn bool PollRunner.done(&self) {
     return self.kitchen.len() == 0 && self.bed.len() == 0;
 }
 
-fn void Runner.run(&runner) {
+fn void PollRunner.run(&runner) {
     runner.kitchen.clear();
     @swap(runner.kitchen, runner.dirty_kitchen);
     while (!runner.done()) {
@@ -94,7 +89,7 @@ fn void Runner.run(&runner) {
                     case PENDING:
                         runner.dirty_kitchen.push(future);
                     case SLEEPING:
-                        SocketWait *wait = anycast(result.value, SocketWait)!!;
+                        NativeSocketPoll *wait = anycast(result.value, NativeSocketPoll)!!;
                         runner.bed.set(wait.socket, future);
                         runner.polls.push(Poll {
                             .socket = wait.socket,
@@ -125,7 +120,7 @@ fn void Runner.run(&runner) {
     }
 }
 
-Runner runner;
+PollRunner runner;
 
 fn void main() {
     String host = "localhost";
@@ -140,7 +135,7 @@ fn void main() {
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
         if (catch nani = client_sock) {
             switch (os::socket_error()) {
-                case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
+                case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(NativeSocketPoll {
                     .socket = server.server_sock.sock,
                     .events = net::SUBSCRIBE_READ,
                 }));

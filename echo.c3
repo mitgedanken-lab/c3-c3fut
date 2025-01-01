@@ -30,7 +30,7 @@ fn Future client_async_read_once(Client *client) {
         Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
                 .socket = client.client_sock.sock,
                 .events = net::SUBSCRIBE_READ,
             }));
@@ -48,7 +48,7 @@ fn Future client_async_write_everything(Client *client) {
         if (client.n == 0) return fut::finished(client);
         usz! n = client.client_sock.write(client.buffer[client.i:client.n]);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+            case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
                 .socket = client.client_sock.sock,
                 .events = net::SUBSCRIBE_WRITE,
             }));
@@ -86,7 +86,10 @@ fn bool Runner.done(&self) {
 Runner runner;
 
 fn void main() {
-    TcpServerSocket server_sock = tcp::listen("localhost", 6969, 69, REUSEADDR)!!;
+    String host = "localhost";
+    uint port = 6969;
+    TcpServerSocket server_sock = tcp::listen(host, port, 69, REUSEADDR)!!;
+    io::printfn("Listening to %s:%d...", host, port);
     server_sock.sock.set_non_blocking(true)!!;
 
     Server server = {.server_sock = server_sock,};
@@ -95,7 +98,7 @@ fn void main() {
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
         if (catch nani = client_sock) {
             switch (os::socket_error()) {
-                case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+                case IoError.WOULD_BLOCK: return fut::sleeping(@tclone(SocketWait {
                     .socket = server.server_sock.sock,
                     .events = net::SUBSCRIBE_READ,
                 }));
@@ -132,40 +135,40 @@ fn void main() {
     runner.kitchen.clear();
     @swap(runner.kitchen, runner.dirty_kitchen);
     while (!runner.done()) {
-        foreach (future: runner.kitchen) {
-            Result result = future.poll()!!;
-            switch (result.state) {
-                case PENDING:
-                    runner.dirty_kitchen.push(future);
-                case SLEEPING:
-                    // TODO: use allocator::temp() for SocketWait allocations
-                    SocketWait *wait = anycast(result.value, SocketWait)!!;
-                    runner.bed.set(wait.socket, future);
-                    runner.polls.push(Poll {
-                        .socket = wait.socket,
-                        .events = wait.events,
-                    });
-                    free(wait);
-                case FINISHED:
-                    future.destroy();
+        @pool() {
+            foreach (future: runner.kitchen) {
+                Result result = future.poll()!!;
+                switch (result.state) {
+                    case PENDING:
+                        runner.dirty_kitchen.push(future);
+                    case SLEEPING:
+                        SocketWait *wait = anycast(result.value, SocketWait)!!;
+                        runner.bed.set(wait.socket, future);
+                        runner.polls.push(Poll {
+                            .socket = wait.socket,
+                            .events = wait.events,
+                        });
+                    case FINISHED:
+                        future.destroy();
+                }
             }
-        }
 
-        runner.kitchen.clear();
-        @swap(runner.kitchen, runner.dirty_kitchen);
+            runner.kitchen.clear();
+            @swap(runner.kitchen, runner.dirty_kitchen);
 
-        CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
-        CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
-        if (result < 0) os::socket_error()?!!;
+            CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
+            CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
+            if (result < 0) os::socket_error()?!!;
 
-        for (usz i = 0; i < runner.polls.len();) {
-            if (runner.polls[i].revents) {
-                Future future = runner.bed.get(runner.polls[i].socket)!!;
-                runner.kitchen.push(future);
-                runner.polls.remove_at(i);
-            } else {
-                ++i;
+            for (usz i = 0; i < runner.polls.len();) {
+                if (runner.polls[i].revents) {
+                    Future future = runner.bed.get(runner.polls[i].socket)!!;
+                    runner.kitchen.push(future);
+                    runner.polls.remove_at(i);
+                } else {
+                    ++i;
+                }
             }
-        }
+        };
     }
 }

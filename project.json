@@ -1,5 +1,5 @@
 {
-  "sources": [ "c3fut.c3" ],
+  "sources":  [ "c3fut.c3" ],
   "targets": {
     "example": {
       "type": "executable",
@@ -8,6 +8,10 @@
     "echo": {
       "type": "executable",
       "sources":  [ "echo.c3" ]
+    },
+    "poll_try": {
+      "type": "executable",
+      "sources":  [ "poll_try.c3" ]
     }
   }
 }

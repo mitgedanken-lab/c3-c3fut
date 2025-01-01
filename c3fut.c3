@@ -1,17 +1,32 @@
 module c3fut::fut;
 
+enum State {
+    FINISHED,
+    PENDING,
+    SLEEPING,
+}
+
 struct Result {
-    bool finished;
+    State state;
     any value;
 }
 
 macro Result pending() {
-    return Result {};
+    return Result {
+        .state = PENDING,
+    };
 }
 
 macro Result finished(any value = null) {
     return Result {
-        .finished = true,
+        .state = FINISHED,
+        .value = value,
+    };
+}
+
+macro Result sleeping(any value = null) {
+    return Result {
+        .state = SLEEPING,
         .value = value
     };
 }
@@ -66,12 +81,13 @@ struct FutureThen(Future) {
 fn Result! FutureThen.poll(&self) @dynamic {
     if (self.left != null) {
         Result result = self.left.poll()!;
-        if (result.finished) {
+        if (result.state == FINISHED) {
             self.right = self.then_fn(result.value);
             self.left.destroy();
             self.left = null;
+            return pending();
         }
-        return pending();
+        return result;
     } else {
         assert(self.right != null);
         return self.right.poll();
@@ -91,9 +107,10 @@ macro Future Future.then(Future left, FutureThenFn then_fn) {
     });
 }
 
-def FutureCatchFn = fn Future(anyfault excuse);
+def FutureCatchFn = fn Future(any arg, anyfault excuse);
 
 struct FutureCatch(Future) {
+    any arg;
     Future left;
     Future right;
     FutureCatchFn catch_fn;
@@ -103,7 +120,7 @@ fn Result! FutureCatch.poll(&self) @dynamic {
     if (self.left != null) {
         Result! result = self.left.poll();
         if (catch excuse = result) {
-            self.right = self.catch_fn(excuse);
+            self.right = self.catch_fn(self.arg, excuse);
             self.left = null;
             return pending();
         }
@@ -123,10 +140,11 @@ fn void FutureCatch.destroy(&self) @dynamic {
 // NOTE: We don't really need to call it @catch (I don't remember what @ does, I think it's an
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
-macro Future Future.@catch(Future left, FutureCatchFn catch_fn) {
+macro Future Future.@catch(Future left, FutureCatchFn catch_fn, any arg = null) {
     return @clone(FutureCatch {
         .left = left,
-        .catch_fn = catch_fn
+        .catch_fn = catch_fn,
+        .arg = arg,
     });
 }
 
@@ -170,11 +188,12 @@ fn Result! FutureForever.poll(&self) @dynamic {
         self.future = null;
         return error?;
     }
-    if (result.finished) {
+    if (result.state == FINISHED) {
         self.future.destroy();
         self.future = null;
+        return pending();
     }
-    return pending();
+    return result;
 }
 
 fn void FutureForever.destroy(&self) @dynamic {

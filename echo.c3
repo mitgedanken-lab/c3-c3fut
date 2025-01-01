@@ -3,6 +3,7 @@ import std::thread;
 import std::net::tcp;
 import std::net::os;
 import std::collections::list;
+import std::collections::map;
 import c3fut::fut;
 
 fault ClientError {
@@ -11,15 +12,17 @@ fault ClientError {
 
 struct Client {
     TcpSocket client_sock;
-    Future future;
     char[1024] buffer;
     usz i, n;
 }
 
 struct Server {
     TcpServerSocket server_sock;
-    Future future;
-    List(<Client*>) *clients;
+}
+
+struct SocketWait {
+    NativeSocket socket;
+    PollSubscribes events;
 }
 
 fn Future client_async_read_once(Client *client) {
@@ -27,7 +30,10 @@ fn Future client_async_read_once(Client *client) {
         Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::pending();
+            case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+                .socket = client.client_sock.sock,
+                .events = net::SUBSCRIBE_READ,
+            }));
             default: return error?;
         }
         if (n == 0) return ClientError.CLOSED?;
@@ -42,7 +48,10 @@ fn Future client_async_write_everything(Client *client) {
         if (client.n == 0) return fut::finished(client);
         usz! n = client.client_sock.write(client.buffer[client.i:client.n]);
         if (catch error = n) {
-            case IoError.WOULD_BLOCK: return fut::pending();
+            case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+                .socket = client.client_sock.sock,
+                .events = net::SUBSCRIBE_WRITE,
+            }));
             default: return error?;
         }
         if (n == 0) return ClientError.CLOSED?;
@@ -59,23 +68,37 @@ fn Future client_async_catch_error(anyfault error) {
     return fut::reject(error);
 }
 
+struct Runner {
+    List(<Future>) kitchen;
+    List(<Future>) dirty_kitchen;
+    HashMap(<NativeSocket, Future>) bed;
+    List(<Poll>) polls;
+}
+
+fn void Runner.schedule(&self, Future future) {
+    self.dirty_kitchen.push(future);
+}
+
+fn bool Runner.done(&self) {
+    return self.kitchen.len() == 0 && self.bed.len() == 0;
+}
+
+Runner runner;
+
 fn void main() {
     TcpServerSocket server_sock = tcp::listen("localhost", 6969, 69, REUSEADDR)!!;
     server_sock.sock.set_non_blocking(true)!!;
 
-    List(<Client*>) clients;
-    List(<Client*>) clients_next;
-
-    Server server = {
-        .server_sock = server_sock,
-        .clients = &clients,
-    };
-    server.future = fut::poll(fn Result!(any state) {
+    Server server = {.server_sock = server_sock,};
+    runner.schedule(fut::poll(fn Result!(any state) {
         Server *server = anycast(state, Server)!!;
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
         if (catch nani = client_sock) {
             switch (os::socket_error()) {
-                case IoError.WOULD_BLOCK: return fut::pending();
+                case IoError.WOULD_BLOCK: return fut::sleeping(@clone(SocketWait {
+                    .socket = server.server_sock.sock,
+                    .events = net::SUBSCRIBE_READ,
+                }));
                 default: nani?!!;
             }
         } else {
@@ -83,33 +106,66 @@ fn void main() {
             Client *client = @clone(Client {
                 .client_sock = client_sock,
             });
-            client.future = fut::forever(fn Future(any arg) {
+            runner.schedule(fut::forever(fn Future(any arg) {
                 Client *client = anycast(arg, Client)!!;
                 client.i = 0;
                 client.n = 0;
                 return client_async_read_once(client).then(fn Future(any result) {
                     return client_async_write_everything(anycast(result, Client)!!);
                 });
-            }, client).@catch(&client_async_catch_error);
-            server.clients.push(client);
+            }, client).@catch(fn Future(any arg, anyfault error) {
+                Client *client = anycast(arg, Client)!!;
+                if (error == ClientError.CLOSED) {
+                    io::printfn("Client disconnected");
+                    // TODO: close the socket properly with shutdown and shit
+                    client.client_sock.close()!!;
+                    free(client);
+                    return fut::done();
+                }
+                return fut::reject(error);
+            }, client));
             io::printfn("Client connected");
         }
         return fut::pending();
-    }, &server);
+    }, &server));
 
-    while (true) {
-        server.future.poll()!!;
-        foreach (client: clients) {
-            if (!client.future.poll()!!.finished) {
-                clients_next.push(client);
-            } else {
-                io::printfn("Client disconnected");
-                client.client_sock.close()!!;
-                client.future.destroy();
-                free(client);
+    runner.kitchen.clear();
+    @swap(runner.kitchen, runner.dirty_kitchen);
+    while (!runner.done()) {
+        foreach (future: runner.kitchen) {
+            Result result = future.poll()!!;
+            switch (result.state) {
+                case PENDING:
+                    runner.dirty_kitchen.push(future);
+                case SLEEPING:
+                    // TODO: use allocator::temp() for SocketWait allocations
+                    SocketWait *wait = anycast(result.value, SocketWait)!!;
+                    runner.bed.set(wait.socket, future);
+                    runner.polls.push(Poll {
+                        .socket = wait.socket,
+                        .events = wait.events,
+                    });
+                    free(wait);
+                case FINISHED:
+                    future.destroy();
             }
         }
-        clients.clear();
-        @swap(clients, clients_next);
+
+        runner.kitchen.clear();
+        @swap(runner.kitchen, runner.dirty_kitchen);
+
+        CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
+        CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
+        if (result < 0) os::socket_error()?!!;
+
+        for (usz i = 0; i < runner.polls.len();) {
+            if (runner.polls[i].revents) {
+                Future future = runner.bed.get(runner.polls[i].socket)!!;
+                runner.kitchen.push(future);
+                runner.polls.remove_at(i);
+            } else {
+                ++i;
+            }
+        }
     }
 }

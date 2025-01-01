@@ -35,15 +35,16 @@ fn int main() {
                 io::printfn("%d", result.ptr);
                 return fut::reject(IoError.WOULD_BLOCK);
             })
-            .@catch(fn Future(anyfault excuse) {
+            .@catch(fn Future(any arg, anyfault excuse) {
                 io::printfn("One of the futures failed with %s. Recovering...", excuse);
                 return fut::done(null);
             }));
+    // TODO: implement simple runner for this kind of stuff
     bool quit = false;
     while (!quit) {
         quit = true;
         foreach (&future: futures) {
-            if (!future.poll()!!.finished) {
+            if (future.poll()!!.state != FINISHED) {
                 quit = false;
             }
         }

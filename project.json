@@ -9,9 +9,9 @@
       "type": "executable",
       "sources":  [ "echo.c3" ]
     },
-    "poll_try": {
+    "raw_poll_echo": {
       "type": "executable",
-      "sources":  [ "poll_try.c3" ]
+      "sources":  [ "raw_poll_echo.c3" ]
     }
   }
 }

@@ -1,4 +1,4 @@
-// Just an example on how to use POSIX's poll(2) raw without any of the future cruft
+// Just an example on how to use POSIX's poll(2) raw without any of the future cruft.
 import std::io;
 import std::net::tcp;
 import std::net;
@@ -7,12 +7,11 @@ import std::collections::map;
 
 struct Client {
     TcpSocket socket;
+    // buffer: aaaaa*****
+    //         ^i   ^n
     char[1024] buffer;
     usz i, n;
 }
-
-// aaaaa*****
-// ^i   ^n
 
 fn bool Client.poll(&self, Poll *poll) {
     switch (poll.events) {

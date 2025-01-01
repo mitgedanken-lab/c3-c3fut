@@ -1,8 +1,11 @@
+// An example of Asynchronous Echo Server using c3fut
 import std::io;
 import std::net::tcp;
 import std::net::os;
 import c3fut::fut;
 import c3fut::poll;
+
+PollRunner runner;
 
 fault ClientError {
     CLOSED,
@@ -14,11 +17,7 @@ struct Client {
     usz i, n;
 }
 
-struct Server {
-    TcpServerSocket server_sock;
-}
-
-fn Future client_async_read_once(Client *client) {
+fn Future Client.async_read_once(&client) {
     return fut::poll(fn Result!(any state) {
         Client *client = anycast(state, Client)!!;
         usz! n = client.client_sock.read(&client.buffer);
@@ -35,7 +34,7 @@ fn Future client_async_read_once(Client *client) {
     }, client);
 }
 
-fn Future client_async_write_everything(Client *client) {
+fn Future Client.async_write_everything(&client) {
     return fut::poll(fn Result!(any state) {
         Client *client = anycast(state, Client)!!;
         if (client.n == 0) return fut::finished(client);
@@ -56,17 +55,12 @@ fn Future client_async_write_everything(Client *client) {
     }, client);
 }
 
-PollRunner runner;
+struct Server {
+    TcpServerSocket server_sock;
+}
 
-fn void main() {
-    String host = "localhost";
-    uint port = 6969;
-    TcpServerSocket server_sock = tcp::listen(host, port, 69, REUSEADDR)!!;
-    io::printfn("Listening to %s:%d...", host, port);
-    server_sock.sock.set_non_blocking(true)!!;
-
-    Server server = {.server_sock = server_sock,};
-    runner.schedule(fut::poll(fn Result!(any state) {
+fn Future Server.start(&server) {
+    return fut::poll(fn Result!(any state) {
         Server *server = anycast(state, Server)!!;
         TcpSocket! client_sock = tcp::accept(&server.server_sock);
         if (catch nani = client_sock) {
@@ -86,8 +80,8 @@ fn void main() {
                 Client *client = anycast(arg, Client)!!;
                 client.i = 0;
                 client.n = 0;
-                return client_async_read_once(client).then(fn Future(any result) {
-                    return client_async_write_everything(anycast(result, Client)!!);
+                return client.async_read_once().then(fn Future(any result) {
+                    return anycast(result, Client)!!.async_write_everything();
                 });
             }, client).@catch(fn Future(any arg, anyfault error) {
                 Client *client = anycast(arg, Client)!!;
@@ -103,7 +97,18 @@ fn void main() {
             io::printfn("Client connected");
         }
         return fut::pending();
-    }, &server));
+    }, server);
+}
 
+fn void main() {
+    String host = "localhost";
+    uint port = 6969;
+
+    TcpServerSocket server_sock = tcp::listen(host, port, 69, REUSEADDR)!!;
+    io::printfn("Listening to %s:%d...", host, port);
+    server_sock.sock.set_non_blocking(true)!!;
+    Server server = {.server_sock = server_sock,};
+
+    runner.schedule(server.start());
     runner.run();
 }

@@ -1,8 +1,22 @@
 module c3fut::fut;
 
 enum State {
+    // The future is finished, and Result.value contains the result of its
+    // execusion.  Consequent calls of Future.poll() after receiving this
+    // Result.state are not advised.
     FINISHED,
+    // The future did a bit of work but it's not finished yet. The runner may
+    // continue calling Future.poll() until the Result is FINISHED.
+    // Result.value should be ignored.
     PENDING,
+    // The future requests the runner to put it to sleep during which
+    // Future.poll() should not called until an event described in Result.value
+    // occurs. The exact type of Result.value is up to the runner and the
+    // future to agree upon. This state is usually used in Async IO when
+    // certain non-blocking file descriptors fail with IoError.WOULD_BLOCK, so
+    // the runner may employ such mechanisms as select/poll/epoll to postpone
+    // execution of the sleeping futures until the file descriptors are
+    // readable/writable again
     SLEEPING,
 }
 

@@ -83,6 +83,48 @@ fn bool Runner.done(&self) {
     return self.kitchen.len() == 0 && self.bed.len() == 0;
 }
 
+fn void Runner.run(&runner) {
+    runner.kitchen.clear();
+    @swap(runner.kitchen, runner.dirty_kitchen);
+    while (!runner.done()) {
+        @pool() {
+            foreach (future: runner.kitchen) {
+                Result result = future.poll()!!;
+                switch (result.state) {
+                    case PENDING:
+                        runner.dirty_kitchen.push(future);
+                    case SLEEPING:
+                        SocketWait *wait = anycast(result.value, SocketWait)!!;
+                        runner.bed.set(wait.socket, future);
+                        runner.polls.push(Poll {
+                            .socket = wait.socket,
+                            .events = wait.events,
+                        });
+                    case FINISHED:
+                        future.destroy();
+                }
+            }
+
+            runner.kitchen.clear();
+            @swap(runner.kitchen, runner.dirty_kitchen);
+
+            CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
+            CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
+            if (result < 0) os::socket_error()?!!;
+
+            for (usz i = 0; i < runner.polls.len();) {
+                if (runner.polls[i].revents) {
+                    Future future = runner.bed.get(runner.polls[i].socket)!!;
+                    runner.kitchen.push(future);
+                    runner.polls.remove_at(i);
+                } else {
+                    ++i;
+                }
+            }
+        };
+    }
+}
+
 Runner runner;
 
 fn void main() {
@@ -132,43 +174,5 @@ fn void main() {
         return fut::pending();
     }, &server));
 
-    runner.kitchen.clear();
-    @swap(runner.kitchen, runner.dirty_kitchen);
-    while (!runner.done()) {
-        @pool() {
-            foreach (future: runner.kitchen) {
-                Result result = future.poll()!!;
-                switch (result.state) {
-                    case PENDING:
-                        runner.dirty_kitchen.push(future);
-                    case SLEEPING:
-                        SocketWait *wait = anycast(result.value, SocketWait)!!;
-                        runner.bed.set(wait.socket, future);
-                        runner.polls.push(Poll {
-                            .socket = wait.socket,
-                            .events = wait.events,
-                        });
-                    case FINISHED:
-                        future.destroy();
-                }
-            }
-
-            runner.kitchen.clear();
-            @swap(runner.kitchen, runner.dirty_kitchen);
-
-            CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
-            CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
-            if (result < 0) os::socket_error()?!!;
-
-            for (usz i = 0; i < runner.polls.len();) {
-                if (runner.polls[i].revents) {
-                    Future future = runner.bed.get(runner.polls[i].socket)!!;
-                    runner.kitchen.push(future);
-                    runner.polls.remove_at(i);
-                } else {
-                    ++i;
-                }
-            }
-        };
-    }
+    runner.run();
 }

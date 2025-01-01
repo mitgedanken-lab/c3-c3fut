@@ -1,3 +1,4 @@
+// Just an example on how to use POSIX's poll(2) raw without any of the future cruft
 import std::io;
 import std::net::tcp;
 import std::net;

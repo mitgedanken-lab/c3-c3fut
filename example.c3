@@ -36,9 +36,13 @@ fn int main() {
                 io::printfn("%d", result.ptr);
                 return fut::reject(IoError.WOULD_BLOCK);
             })
+            .then(fn Future(any result) {
+                io::printfn("You should never see this");
+                return fut::done();
+            })
             .@catch(fn Future(any arg, anyfault excuse) {
                 io::printfn("One of the futures failed with %s. Recovering...", excuse);
-                return fut::done(null);
+                return fut::done();
             }));
     runner.run()!!;
     return 0;

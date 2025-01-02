@@ -1,13 +1,14 @@
 {
   "sources":  [ "c3fut.c3" ],
+  "output": "build",
   "targets": {
     "example": {
       "type": "executable",
       "sources":  [ "examples/example.c3" ]
     },
-    "echo": {
+    "echo_server": {
       "type": "executable",
-      "sources":  [ "examples/echo.c3" ]
+      "sources":  [ "examples/echo_server.c3" ]
     },
     "raw_poll_echo": {
       "type": "executable",

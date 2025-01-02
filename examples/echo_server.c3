@@ -100,9 +100,33 @@ fn Future Server.start(&server) {
     }, server);
 }
 
-fn void main() {
+macro @shift(&xs) {
+    var x = (*xs)[0];
+    (*xs) = (*xs)[1..];
+    return x;
+}
+
+fn void usage(String program_name) {
+    io::eprintfn("Usage: %s [host] [port]", program_name);
+}
+
+fn int main(String[] args) {
+    String program_name = @shift(args);
+
     String host = "localhost";
+    if (args.len > 0) host = @shift(args);
+
     uint port = 6969;
+    if (args.len > 0) {
+        String arg = @shift(args);
+        if (try n = arg.to_integer($typeof(port))) {
+            port = n;
+        } else {
+            usage(program_name);
+            io::eprintfn("ERROR: `%s` is not a valid integer", arg);
+            return 1;
+        }
+    }
 
     TcpServerSocket server_sock = tcp::listen(host, port, 69, REUSEADDR)!!;
     io::printfn("Listening to %s:%d...", host, port);
@@ -111,4 +135,5 @@ fn void main() {
 
     runner.schedule(server.start());
     runner.run();
+    return 0;
 }

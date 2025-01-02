@@ -313,6 +313,7 @@ fn void PollRunner.run(&runner) {
             runner.kitchen.clear();
             @swap(runner.kitchen, runner.dirty_kitchen);
 
+            // TODO: use net::poll() instead of os::poll() here
             CInt timeout = runner.kitchen.len() == 0 ? (CInt)-1 : (CInt) 0;
             CInt result = os::poll((Posix_pollfd*)runner.polls.entries, (Posix_nfds_t)runner.polls.len(), timeout);
             if (result < 0) os::socket_error()?!!;

@@ -255,7 +255,7 @@ fn void! SimpleRunner.run(&self) {
                 case SLEEPING: return FutureError.SLEEPING_UNSUPPORTED?;
                 case FINISHED:
                     self.futures.swap(i, self.futures.len()-1);
-                    self.futures.pop()!!;
+                    self.futures.pop()!!.destroy();
             }
         }
     }

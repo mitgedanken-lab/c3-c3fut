@@ -3,15 +3,15 @@
   "targets": {
     "example": {
       "type": "executable",
-      "sources":  [ "example.c3" ]
+      "sources":  [ "examples/example.c3" ]
     },
     "echo": {
       "type": "executable",
-      "sources":  [ "echo.c3" ]
+      "sources":  [ "examples/echo.c3" ]
     },
     "raw_poll_echo": {
       "type": "executable",
-      "sources":  [ "raw_poll_echo.c3" ]
+      "sources":  [ "examples/raw_poll_echo.c3" ]
     }
   }
 }

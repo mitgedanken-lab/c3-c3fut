@@ -1,3 +1,4 @@
+// An example of 2 futures executing concurrently using a SimpleRunner.
 import std::io;
 import c3fut::fut;
 import c3fut::simple;

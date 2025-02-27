@@ -73,7 +73,7 @@ fn Future Server.start(&server) {
             }
         } else {
             client_sock.sock.set_non_blocking(true)!!;
-            Client *client = @clone(Client {
+            Client *client = mem::new(Client, {
                 .client_sock = client_sock,
             });
             runner.schedule(fut::forever(fn Future(any arg) {

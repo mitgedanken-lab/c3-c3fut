@@ -43,7 +43,7 @@ fn void main() {
     server.sock.set_non_blocking(true)!!;
 
     List(<Poll>) polls;
-    polls.push(Poll {
+    polls.push({
         .socket = server.sock,
         .events = net::SUBSCRIBE_READ,
         .revents = 0,
@@ -61,12 +61,12 @@ fn void main() {
                     TcpSocket client = tcp::accept(&server)!!;
                     client.sock.set_non_blocking(true)!!;
 
-                    polls.push(Poll {
+                    polls.push({
                         .socket = client.sock,
                         .events = net::SUBSCRIBE_READ,
                         .revents = 0,
                     });
-                    clients.set(client.sock, Client{
+                    clients.set(client.sock, {
                         .socket = client,
                     });
                     io::printfn("CONNECTED %d", clients.len());

@@ -33,20 +33,20 @@ struct Result {
 }
 
 macro Result pending() {
-    return Result {
+    return {
         .state = PENDING,
     };
 }
 
 macro Result finished(any value = null) {
-    return Result {
+    return {
         .state = FINISHED,
         .value = value,
     };
 }
 
 macro Result sleeping(any value = null) {
-    return Result {
+    return {
         .state = SLEEPING,
         .value = value
     };
@@ -70,7 +70,7 @@ fn void FutureDone.destroy(&self) @dynamic {
 }
 
 macro Future done(any result = null) {
-    return @clone(FutureDone{.result = result});
+    return mem::new(FutureDone, {.result = result});
 }
 
 struct FutureReject(Future) {
@@ -86,9 +86,7 @@ fn void FutureReject.destroy(&self) @dynamic {
 }
 
 fn Future reject(anyfault excuse) {
-    FutureReject r = {};
-    r.excuse = excuse;
-    return @clone(r);
+    return mem::new(FutureReject, { .excuse = excuse });
 }
 
 def FutureThenFn = fn Future(any result);
@@ -122,7 +120,7 @@ fn void FutureThen.destroy(&self) @dynamic {
 }
 
 macro Future Future.then(Future left, FutureThenFn then_fn) {
-    return @clone(FutureThen {
+    return mem::new(FutureThen, {
         .left = left,
         .then_fn = then_fn,
     });
@@ -162,7 +160,7 @@ fn void FutureCatch.destroy(&self) @dynamic {
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
 macro Future Future.@catch(Future left, FutureCatchFn catch_fn, any arg = null) {
-    return @clone(FutureCatch {
+    return mem::new(FutureCatch, {
         .left = left,
         .catch_fn = catch_fn,
         .arg = arg,
@@ -185,7 +183,7 @@ fn void FuturePoll.destroy(&self) @dynamic {
 }
 
 macro Future poll(FuturePollFn poll_fn, any state = null) {
-    return @clone(FuturePoll {
+    return mem::new(FuturePoll, {
         .state = state,
         .poll_fn = poll_fn,
     });
@@ -203,12 +201,15 @@ struct FutureForever(Future) {
 
 fn Result! FutureForever.poll(&self) @dynamic {
     if (self.future == null) self.future = self.forever_fn(self.state);
-    Result! result = self.future.poll();
-    if (catch error = result) {
+
+    defer catch {
         self.future.destroy();
         self.future = null;
-        return error?;
     }
+
+    // Will run the defer on error
+    Result result = self.future.poll()!;
+
     if (result.state == FINISHED) {
         self.future.destroy();
         self.future = null;
@@ -223,7 +224,7 @@ fn void FutureForever.destroy(&self) @dynamic {
 }
 
 macro Future forever(FutureForeverFn forever_fn, any state = null) {
-    return @clone(FutureForever {
+    return mem::new(FutureForever, {
         .state = state,
         .forever_fn = forever_fn,
     });
@@ -301,7 +302,7 @@ fn void PollRunner.run(&runner) {
                     case SLEEPING:
                         NativeSocketPoll *wait = anycast(result.value, NativeSocketPoll)!!;
                         runner.bed.set(wait.socket, future);
-                        runner.polls.push(Poll {
+                        runner.polls.push({
                             .socket = wait.socket,
                             .events = wait.events,
                         });
